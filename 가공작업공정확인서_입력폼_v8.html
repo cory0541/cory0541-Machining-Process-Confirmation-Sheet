@@ -590,11 +590,14 @@ async function _dl(){
       shXml=setCell(shXml,'L'+row,g('p'+pi+'_c4_'+n));
       shXml=setCell(shXml,'R'+row,g('p'+pi+'_c5_'+n));
       shXml=setCell(shXml,'T'+row,g('p'+pi+'_c6_'+n));
-      if(n<=3){
-        shXml=setCell(shXml,'F'+row,g('p'+pi+'_tmp'+n));
-        shXml=setCell(shXml,'H'+row,g('p'+pi+'_hum'+n));
-      }
     }
+    var envRow=hdr+13;
+    shXml=setCell(shXml,'F'+envRow, g('p'+pi+'_tmp1'));
+    shXml=setCell(shXml,'H'+envRow, g('p'+pi+'_hum1'));
+    shXml=setCell(shXml,'N'+envRow, g('p'+pi+'_tmp2'));
+    shXml=setCell(shXml,'P'+envRow, g('p'+pi+'_hum2'));
+    shXml=setCell(shXml,'V'+envRow, g('p'+pi+'_tmp3'));
+    shXml=setCell(shXml,'X'+envRow, g('p'+pi+'_hum3'));
   }
   zip.file('xl/worksheets/sheet1.xml',shXml);
   zip.remove('xl/calcChain.xml');
