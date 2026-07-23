@@ -455,7 +455,7 @@ function addProc(){
   h+='<div class="f"><label>세 팅 시 간 (min)</label><input type="number" id="p'+i+'_setup" min="0" placeholder="0"></div>';
   h+='<div class="f"><label>1EA 가공시간 (min)</label><input type="number" id="p'+i+'_utime" min="0" placeholder="0"></div>';
   h+='<div class="f"><label>총 작업시간 (min)</label><input type="number" id="p'+i+'_ttime" min="0" placeholder="0"></div>';
-  h+='<div class="f"><label>작  업  자</label><input type="text" id="p'+i+'_worker" onchange="rememberWorkerName(this.value)"></div>';
+  h+='<div class="f"><label>작  업  자</label><div style="display:flex;gap:6px"><input type="text" id="p'+i+'_worker" style="flex:1"><button type="button" class="btn-sm btn-ghost" onclick="copyPrevWorker('+i+')" title="이전 공정 작업자 이름 가져오기">↑이전</button></div></div>';
   h+='</div>';
   h+='<div class="f"><label>프로그램 NO.</label><input type="text" id="p'+i+'_prog"></div>';
   h+='<div class="fg c4 material-row" style="margin-top:9px">';
@@ -474,20 +474,14 @@ function addProc(){
   h+='</div></div>';
   document.getElementById('proc-list').insertAdjacentHTML('beforeend', h);
   document.getElementById('btn-add').style.display=procCount>=5?'none':'';
-  try{
-    var lastWorker = localStorage.getItem('lastWorkerName');
-    if(lastWorker){
-      var wEl = document.getElementById('p'+i+'_worker');
-      if(wEl) wEl.value = lastWorker;
-    }
-  }catch(e){}
 }
-function rememberWorkerName(v){
-  try{ if(v) localStorage.setItem('lastWorkerName', v); }catch(e){}
-}
-function forgetWorkerName(){
-  try{ localStorage.removeItem('lastWorkerName'); }catch(e){}
-  showToast('🗑 기억된 작업자 이름을 지웠습니다');
+function copyPrevWorker(i){
+  if(i<=1){ alert('이전 공정이 없습니다.'); return; }
+  var prevEl = document.getElementById('p'+(i-1)+'_worker');
+  var curEl = document.getElementById('p'+i+'_worker');
+  if(!prevEl || !curEl) return;
+  if(!prevEl.value){ alert('공정 '+(i-1)+'의 작업자가 비어있습니다.'); return; }
+  curEl.value = prevEl.value;
 }
 function stepNum(id, delta){
   var el = document.getElementById(id);
@@ -1079,13 +1073,17 @@ function saveAll() {
   var blob = new Blob([htmlSrc], {type: 'text/html;charset=utf-8'});
 
   var today = new Date();
-  var company = (data['company'] || '미입력').replace(/[\\/:*?"<>|]/g,'');
-  var fn = '가공작업공정확인서_' + company + '_'
-    + today.getFullYear()
+  var sanitize = function(s){ return (s||'').replace(/[\\/:*?"<>|]/g,'').trim(); };
+  var companyPart = sanitize(data['company']) || '업체미입력';
+  var drawingPart = sanitize(data['drawing']) || '도면미입력';
+  var lastWorker = procCount>=1 ? (data['p'+procCount+'_worker']||'') : '';
+  var workerPart = sanitize(lastWorker) || '작업자미입력';
+  var dateStr = today.getFullYear()
     + String(today.getMonth()+1).padStart(2,'0')
     + String(today.getDate()).padStart(2,'0')
-    + '_' + String(today.getHours()).padStart(2,'0')
-    + String(today.getMinutes()).padStart(2,'0') + '.html';
+    + '-' + String(today.getHours()).padStart(2,'0')
+    + String(today.getMinutes()).padStart(2,'0');
+  var fn = companyPart + '_' + drawingPart + '_' + workerPart + '_' + dateStr + '.html';
 
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -1094,10 +1092,22 @@ function saveAll() {
   document.body.appendChild(a); a.click();
   setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 
+  // 같은 도면번호로 이전에 저장했던 파일명이 있으면 삭제 안내
+  var prevKey = 'lastSavedFile_' + companyPart + '_' + drawingPart;
+  var prevFn = null;
+  try { prevFn = localStorage.getItem(prevKey); } catch(e) {}
+  try { localStorage.setItem(prevKey, fn); } catch(e) {}
+
   var t = document.getElementById('toast');
   t.textContent = '💾 저장 완료 — 파일을 열어 이어서 작성하거나 전달하세요';
   t.classList.add('show');
   setTimeout(function() { t.classList.remove('show'); t.textContent = '✓ 다운로드 완료'; }, 3500);
+
+  if (prevFn && prevFn !== fn) {
+    setTimeout(function(){
+      alert('저장 완료: ' + fn + '\n\n같은 작업(' + companyPart + ' / ' + drawingPart + ')의 이전 파일이 폴더에 남아있을 수 있습니다.\n\n"' + prevFn + '"\n\n위 파일은 이제 필요 없으니 폴더에서 삭제해주세요.');
+    }, 300);
+  }
 }
 </script>
 </body></html>
