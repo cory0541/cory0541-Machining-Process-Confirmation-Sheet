@@ -20,6 +20,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:#1A1A1A;pa
 .wrap{max-width:1200px;margin:0 auto;padding:26px 18px}
 .card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);margin-bottom:18px;border:1px solid var(--lt);overflow:hidden}
 .chdr{background:var(--navy);color:#fff;padding:11px 16px;font-size:11.5px;font-weight:700;letter-spacing:2px;display:flex;align-items:center;gap:7px}
+.apply1-chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--navy);font-weight:600;cursor:pointer;user-select:none}
+.apply1-chk input{width:16px;height:16px;cursor:pointer}
 .chdr-search{background:#6B3FA0;cursor:pointer;justify-content:space-between;user-select:none}
 .chdr-search .car{transition:transform .2s}
 .chdr-search.open .car{transform:rotate(180deg)}
@@ -249,6 +251,29 @@ hr.dv{border:none;border-top:1.5px solid var(--lt);margin:13px 0}
     </div>
   </div>
   <div class="card">
+    <div class="chdr" style="background:#6B3FA0">1차 공정 값 → 지정 공정 일괄 적용</div>
+    <div class="cb" style="padding:12px 16px">
+      <div style="font-size:11.5px;color:#888;margin-bottom:8px">아래에서 적용 대상 차수를 고르고, 체크하면 1차 공정에 입력된 값을 바로 적용합니다.</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12.5px;color:var(--navy);font-weight:700;margin-right:8px">적용 대상 차수</label>
+        <select id="apply1-target-order" style="border:1.5px solid var(--lt);border-radius:5px;padding:6px 10px;font-size:12.5px;font-family:inherit">
+          <option value="all">전체 공정 (2차 이상)</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px 20px">
+        <label class="apply1-chk"><input type="checkbox" onchange="applyP1FieldToAll('eno', this)"> 설비 NO.</label>
+        <label class="apply1-chk"><input type="checkbox" onchange="applyP1FieldToAll('prog', this)"> 프로그램 NO.</label>
+        <label class="apply1-chk"><input type="checkbox" onchange="applyP1FieldToAll('msize', this)"> 소재주문치수</label>
+        <label class="apply1-chk"><input type="checkbox" onchange="applyP1FieldToAll('mcount', this)"> 소재주문개수</label>
+        <label class="apply1-chk"><input type="checkbox" onchange="applyP1FieldToAll('output', this)"> 생산개수</label>
+        <label class="apply1-chk"><input type="checkbox" onchange="applyP1FieldToAll('worker', this)"> 작업자</label>
+        <label class="apply1-chk"><input type="checkbox" onchange="applyP1ToolsToAll(this)"> 공구 (전체)</label>
+      </div>
+      <hr class="dv" style="margin:12px 0">
+      <label class="apply1-chk" style="color:#6B3FA0"><input type="checkbox" onchange="applyP1AllToAll(this)"> <b>작성된 전체값 적용</b> (공정1의 모든 항목 한 번에)</label>
+    </div>
+  </div>
+  <div class="card">
     <div class="chdr">공  정  이  력  사  항</div>
     <div class="cb" style="padding:11px">
       <div id="proc-list"></div>
@@ -372,6 +397,8 @@ var ORDER=['1차','2차','3차','4차','5차'];
   var dbse = document.getElementById('db-search-equip');
   if(dbso){ ORDER.forEach(function(o){ dbso.insertAdjacentHTML('beforeend','<option value="'+o+'">'+o+'</option>'); }); }
   if(dbse){ EQUIP.forEach(function(eq){ dbse.insertAdjacentHTML('beforeend','<option value="'+eq+'">'+eq+'</option>'); }); }
+  var apo = document.getElementById('apply1-target-order');
+  if(apo){ ORDER.slice(1).forEach(function(o){ apo.insertAdjacentHTML('beforeend','<option value="'+o+'">'+o+'만</option>'); }); }
 })();
 
 function toggleSearchCard(){
@@ -521,6 +548,7 @@ function addProc(){
   h+='<div class="psel">';
   h+='<div class="sl"><span>차수</span><select id="p'+i+'_order" onclick="event.stopPropagation()" onchange="tryAutoFillProcess('+i+')">'+mkOrderOpts(do_)+'</select></div>';
   h+='<div class="sl"><span>설비</span><select id="p'+i+'_equip" onclick="event.stopPropagation()" onchange="tryAutoFillProcess('+i+')">'+mkEquipOpts(de)+'</select></div>';
+  if(i>1){ h+='<button type="button" class="btn-sm btn-ghost" onclick="event.stopPropagation();copyAllFromPrev('+i+')" title="이전 공정 데이터 전체 복사">⤴ 이전 공정 전체 복사</button>'; }
   h+='<button class="pdel" onclick="event.stopPropagation();removeProc('+i+')">✕</button>';
   h+='</div>';
   h+='<svg class="chev" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>';
@@ -540,11 +568,11 @@ function addProc(){
   h+='<div class="f"><label>세 팅 시 간 (min)</label><input type="number" id="p'+i+'_setup" min="0" placeholder="0"></div>';
   h+='<div class="f"><label>1EA 가공시간 (min)</label><input type="number" id="p'+i+'_utime" min="0" placeholder="0"></div>';
   h+='<div class="f"><label>총 작업시간 (min)</label><input type="number" id="p'+i+'_ttime" min="0" placeholder="0"></div>';
-  h+='<div class="f"><label>작  업  자</label><div style="display:flex;gap:6px"><input type="text" id="p'+i+'_worker" style="flex:1"><button type="button" class="btn-sm btn-ghost" onclick="copyPrevWorker('+i+')" title="이전 공정 작업자 이름 가져오기">↑이전</button></div></div>';
+  h+='<div class="f"><label>작  업  자</label><div style="display:flex;gap:6px"><input type="text" id="p'+i+'_worker" style="flex:1">'+(i>1?'<button type="button" class="btn-sm btn-ghost" onclick="copyPrevWorker('+i+')" title="이전 공정 작업자 이름 가져오기">↑이전</button>':'')+'</div></div>';
   h+='</div>';
   h+='<div class="f"><label>프로그램 NO.</label><input type="text" id="p'+i+'_prog"></div>';
   h+='<div class="fg c4 material-row" style="margin-top:9px">';
-  h+='<div class="f"><label>소  재  치  수</label><input type="text" id="p'+i+'_msize" placeholder="예: 100×50×20mm"></div>';
+  h+='<div class="f"><label>소재주문치수</label><input type="text" id="p'+i+'_msize" placeholder="예: 100×50×20mm"></div>';
   h+='<div class="f"><label>소재주문개수</label><div style="display:flex;gap:6px;align-items:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum(\'p'+i+'_mcount\',-1)">−</button><input type="number" id="p'+i+'_mcount" value="0" min="0" style="flex:1;text-align:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum(\'p'+i+'_mcount\',1)">＋</button></div></div>';
   h+='<div class="f"><label>생  산  개  수</label><div style="display:flex;gap:6px;align-items:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum(\'p'+i+'_output\',-1)">−</button><input type="number" id="p'+i+'_output" value="0" min="0" style="flex:1;text-align:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum(\'p'+i+'_output\',1)">＋</button></div></div>';
   h+='<div class="f"><label>불  량  개  수</label><div style="display:flex;gap:6px;align-items:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum(\'p'+i+'_defect\',-1)">−</button><input type="number" id="p'+i+'_defect" value="0" min="0" style="flex:1;text-align:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum(\'p'+i+'_defect\',1)">＋</button></div></div>';
@@ -572,6 +600,101 @@ function copyPrevWorker(i){
   if(!prevEl.value){ alert('공정 '+(i-1)+'의 작업자가 비어있습니다.'); return; }
   curEl.value = prevEl.value;
 }
+
+function getApply1TargetProcs(){
+  var targetSel = document.getElementById('apply1-target-order');
+  var target = targetSel ? targetSel.value : 'all';
+  var list = [];
+  for(var i=2;i<=procCount;i++){
+    if(target==='all'){ list.push(i); continue; }
+    var ordEl = document.getElementById('p'+i+'_order');
+    if(ordEl && ordEl.value===target) list.push(i);
+  }
+  return list;
+}
+
+function applyP1FieldToAll(field, checkbox){
+  if(!checkbox.checked) return;
+  var p1El = document.getElementById('p1_'+field);
+  if(!p1El){ checkbox.checked = false; return; }
+  if(!p1El.value){ alert('공정 1에 값이 비어있습니다.'); checkbox.checked = false; return; }
+  var targets = getApply1TargetProcs();
+  if(!targets.length){ alert('적용할 대상 공정이 없습니다.'); checkbox.checked = false; return; }
+  var applied = 0;
+  targets.forEach(function(i){
+    var el = document.getElementById('p'+i+'_'+field);
+    if(el){ el.value = p1El.value; applied++; }
+  });
+  if(applied>0) showToast('✓ 공정 1의 값을 '+applied+'개 공정에 적용했습니다');
+  else alert('적용할 다른 공정이 없습니다.');
+}
+
+function applyP1ToolsToAll(checkbox){
+  if(!checkbox.checked) return;
+  var tools = [];
+  for(var t=1;t<=12;t++){
+    var el = document.getElementById('p1_tool'+t);
+    tools.push(el ? el.value : '');
+  }
+  if(!tools.filter(Boolean).length){ alert('공정 1에 입력된 공구가 없습니다.'); checkbox.checked = false; return; }
+  var targets = getApply1TargetProcs();
+  if(!targets.length){ alert('적용할 대상 공정이 없습니다.'); checkbox.checked = false; return; }
+  var applied = 0;
+  targets.forEach(function(i){
+    var any = false;
+    for(var t2=1;t2<=12;t2++){
+      var curEl = document.getElementById('p'+i+'_tool'+t2);
+      if(curEl){ curEl.value = tools[t2-1]; any = true; }
+    }
+    if(any) applied++;
+  });
+  if(applied>0) showToast('✓ 공정 1의 공구를 '+applied+'개 공정에 적용했습니다');
+  else alert('적용할 다른 공정이 없습니다.');
+}
+
+function applyP1AllToAll(checkbox){
+  if(!checkbox.checked) return;
+  if(!confirm('공정 1의 모든 입력값을 선택한 대상 공정에 적용할까요?\n(이미 입력된 내용은 덮어씌워집니다)')) { checkbox.checked = false; return; }
+  var targets = getApply1TargetProcs();
+  if(!targets.length){ alert('적용할 대상 공정이 없습니다.'); checkbox.checked = false; return; }
+  var fields = ['eno','wdesc','setup','utime','ttime','prog','msize','mcount','output','worker'];
+  var applied = 0;
+  targets.forEach(function(i){
+    var any = false;
+    fields.forEach(function(f){
+      var p1El = document.getElementById('p1_'+f);
+      var curEl = document.getElementById('p'+i+'_'+f);
+      if(p1El && curEl && p1El.value){ curEl.value = p1El.value; any = true; }
+    });
+    for(var t=1;t<=12;t++){
+      var p1Tool = document.getElementById('p1_tool'+t);
+      var curTool = document.getElementById('p'+i+'_tool'+t);
+      if(p1Tool && curTool){ curTool.value = p1Tool.value; any = true; }
+    }
+    if(any) applied++;
+  });
+  if(applied>0) showToast('✓ 공정 1의 전체 내용을 '+applied+'개 공정에 적용했습니다');
+  else alert('적용할 다른 공정이 없습니다.');
+  checkbox.checked = false;
+}
+
+function copyAllFromPrev(i){
+  if(i<=1){ alert('이전 공정이 없습니다.'); return; }
+  if(!confirm('공정 '+(i-1)+'의 내용을 공정 '+i+'에 그대로 복사할까요?\n(이미 입력된 내용은 덮어씌워집니다)')) return;
+  var fields = ['eno','wdesc','setup','utime','ttime','prog','msize','mcount','output','worker'];
+  fields.forEach(function(f){
+    var prevEl = document.getElementById('p'+(i-1)+'_'+f);
+    var curEl = document.getElementById('p'+i+'_'+f);
+    if(prevEl && curEl && prevEl.value) curEl.value = prevEl.value;
+  });
+  for(var t=1;t<=12;t++){
+    var prevTool = document.getElementById('p'+(i-1)+'_tool'+t);
+    var curTool = document.getElementById('p'+i+'_tool'+t);
+    if(prevTool && curTool) curTool.value = prevTool.value;
+  }
+  showToast('✓ 공정 '+(i-1)+'의 내용을 공정 '+i+'에 전체 복사했습니다');
+}
+
 function stepNum(id, delta){
   var el = document.getElementById(id);
   if(!el) return;
@@ -752,7 +875,7 @@ function saveToolDB(db){
   localStorage.setItem(TOOL_DB_KEY, JSON.stringify(db));
 }
 
-var TOOLDB_XLSX_HEADER = ['도면번호','차수','설비','업체명','소재','작업내용','세팅시간','1EA가공시간','총작업시간','프로그램NO','소재치수','소재주문개수','납기수량','저장일',
+var TOOLDB_XLSX_HEADER = ['도면번호','차수','설비','업체명','소재','작업내용','세팅시간','1EA가공시간','총작업시간','프로그램NO','소재주문치수','소재주문개수','납기수량','저장일',
   '공구1','공구2','공구3','공구4','공구5','공구6','공구7','공구8','공구9','공구10','공구11','공구12'];
 
 function exportToolDBExcel(){
