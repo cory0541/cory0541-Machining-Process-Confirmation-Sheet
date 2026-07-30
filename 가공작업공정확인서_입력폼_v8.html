@@ -260,7 +260,14 @@ hr.dv{border:none;border-top:1.5px solid var(--lt);margin:13px 0}
           </div>
           <input type="hidden" id="msize">
         </div>
-        <div class="f"><label>소재주문개수</label><div style="display:flex;gap:6px;align-items:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum('mcount',-1)">−</button><input type="number" id="mcount" value="0" min="0" style="flex:1;text-align:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum('mcount',1)">＋</button></div></div>
+        <div class="f">
+          <label>소재주문개수</label>
+          <div class="dn-chip-box" id="mcount-chip-box" onclick="document.getElementById('mcount-input').focus()">
+            <span class="dn-chips" id="mcount-chips"></span>
+            <input type="number" id="mcount-input" placeholder="개수 입력 후 Enter" onkeydown="handleQtyInputKey(event,'mcount')" onblur="addQtyChipFromInput('mcount')">
+          </div>
+          <input type="hidden" id="mcount" value="">
+        </div>
       </div>
       <div class="fg c4 qty-row" style="margin-bottom:9px">
         <div class="f"><label>작  업  지  시  일</label><div style="display:flex;gap:6px"><input type="datetime-local" id="work_date" style="flex:1"><button type="button" class="btn-sm btn-ghost" onclick="fillNowById('work_date')">지금</button></div></div>
@@ -401,7 +408,7 @@ hr.dv{border:none;border-top:1.5px solid var(--lt);margin:13px 0}
 <div class="lding" id="lding"><div class="lbox"><div class="spin"></div><p>엑셀 생성 중...</p></div></div>
 <script>
 var drawingChips = [];
-var qtyChips = { deliv_qty: [], stock_qty: [] };
+var qtyChips = { deliv_qty: [], stock_qty: [], mcount: [] };
 var textChips = { msize: [] };
 
 // ── 기본정보 저장 (HTML 다운로드) ──
@@ -796,9 +803,10 @@ function resetForm(){
   drawingChips = [];
   renderDrawingChipsOnly();
   document.getElementById('drawing-hint').textContent = '';
-  qtyChips = { deliv_qty: [], stock_qty: [] };
+  qtyChips = { deliv_qty: [], stock_qty: [], mcount: [] };
   renderQtyChipsOnly('deliv_qty');
   renderQtyChipsOnly('stock_qty');
+  renderQtyChipsOnly('mcount');
   textChips = { msize: [] };
   renderTextChipsOnly('msize');
   calcTotal();document.getElementById('proc-list').innerHTML='';procCount=0;document.getElementById('btn-add').style.display='';
@@ -1196,7 +1204,7 @@ function onDrawingInput(){
     hint.textContent = '';
   }
 
-  var anyRec = db.find(function(r){ return r.dn===dn && (r.company || r.material || r.msize); });
+  var anyRec = db.find(function(r){ return r.dn===dn && (r.company || r.material || r.msize || r.mcount); });
   if(anyRec){
     var companyEl = document.getElementById('company');
     var materialEl = document.getElementById('material');
@@ -1205,12 +1213,13 @@ function onDrawingInput(){
     var filledBase = false;
     if(companyEl && !companyEl.value && anyRec.company){ companyEl.value = anyRec.company; filledBase = true; }
     if(materialEl && !materialEl.value && anyRec.material){ materialEl.value = anyRec.material; filledBase = true; }
-    if(msizeEl && !msizeEl.value && anyRec.msize){ msizeEl.value = anyRec.msize; filledBase = true; }
+    if(msizeEl && !msizeEl.value && anyRec.msize){ msizeEl.value = anyRec.msize; syncTextChipsFromField('msize'); filledBase = true; }
     if(mcountEl && (!mcountEl.value || mcountEl.value==='0') && anyRec.mcount && anyRec.deliv_qty && parseFloat(anyRec.deliv_qty)>0){
       var curDeliv = parseFloat(document.getElementById('deliv_qty').value)||0;
       if(curDeliv>0){
         var ratio = parseFloat(anyRec.mcount) / parseFloat(anyRec.deliv_qty);
         mcountEl.value = Math.max(0, Math.round(ratio * curDeliv));
+        syncQtyChipsFromField('mcount');
         filledBase = true;
       }
     }
@@ -1249,7 +1258,7 @@ function autoFillTools(e, dn, equip, order){
   setVal2('ttime', rec.ttime);
   setVal2('prog', rec.prog);
   var msizeElA = document.getElementById('msize');
-  if(msizeElA && !msizeElA.value && rec.msize) msizeElA.value = rec.msize;
+  if(msizeElA && !msizeElA.value && rec.msize){ msizeElA.value = rec.msize; syncTextChipsFromField('msize'); }
   showToast('✓ 도면번호 ['+dn+' / '+order+' / '+equip+'] 세팅값을 공정 '+targetPi+'에 입력했습니다');
 }
 
@@ -1344,12 +1353,15 @@ function applyTools(dn, equip, order){
   setVal('ttime', rec.ttime);
   setVal('prog', rec.prog);
   var msizeElB = document.getElementById('msize');
-  if(msizeElB && !msizeElB.value && rec.msize) msizeElB.value = rec.msize;
+  if(msizeElB && !msizeElB.value && rec.msize){ msizeElB.value = rec.msize; syncTextChipsFromField('msize'); }
   if(rec.mcount && rec.deliv_qty && parseFloat(rec.deliv_qty)>0){
     var curDeliv2 = parseFloat(document.getElementById('deliv_qty').value)||0;
     if(curDeliv2>0){
       var mcountElB = document.getElementById('mcount');
-      if(mcountElB && (!mcountElB.value || mcountElB.value==='0')) mcountElB.value = Math.max(0, Math.round(parseFloat(rec.mcount)/parseFloat(rec.deliv_qty)*curDeliv2));
+      if(mcountElB && (!mcountElB.value || mcountElB.value==='0')){
+        mcountElB.value = Math.max(0, Math.round(parseFloat(rec.mcount)/parseFloat(rec.deliv_qty)*curDeliv2));
+        syncQtyChipsFromField('mcount');
+      }
     }
   }
   closeToolDB();
@@ -1414,7 +1426,7 @@ function saveCurrentToolsToDB(){
   var delivQty = document.getElementById('deliv_qty').value.trim();
   var company = document.getElementById('company').value.trim();
   var material = document.getElementById('material').value.trim();
-  if(!tools.filter(Boolean).length && !wdesc && !setup && !utime && !prog && !msize){ alert('공정 '+pi+'에 저장할 세팅값이 없습니다.'); return; }
+  if(!tools.filter(Boolean).length && !wdesc && !setup && !utime && !prog && !msize && !mcount){ alert('공정 '+pi+'에 저장할 세팅값이 없습니다.'); return; }
   var db = loadToolDB();
   var idx = db.findIndex(function(r){ return r.dn===dn && r.equip===equip && r.order===order; });
   var today = new Date();
@@ -1444,6 +1456,7 @@ function saveCurrentToolsToDB(){
     syncDrawingChipsFromField();
     syncQtyChipsFromField('deliv_qty');
     syncQtyChipsFromField('stock_qty');
+    syncQtyChipsFromField('mcount');
     syncTextChipsFromField('msize');
     calcTotal();
     if(document.getElementById('drawing').value) onDrawingInput();
@@ -1616,6 +1629,7 @@ function generateShareLink(){
     syncDrawingChipsFromField();
     syncQtyChipsFromField('deliv_qty');
     syncQtyChipsFromField('stock_qty');
+    syncQtyChipsFromField('mcount');
     syncTextChipsFromField('msize');
     if (typeof calcTotal === 'function') calcTotal();
   } catch(e){ console.log('공유링크 복원 오류:', e); }
