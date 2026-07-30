@@ -252,7 +252,14 @@ hr.dv{border:none;border-top:1.5px solid var(--lt);margin:13px 0}
       </div>
       <div class="fg c3" style="margin-bottom:9px">
         <div class="f"><label>소      재</label><input type="text" id="material" placeholder="소재 입력"></div>
-        <div class="f"><label>소재주문치수</label><input type="text" id="msize" placeholder="예: 100×50×20mm"></div>
+        <div class="f">
+          <label>소재주문치수</label>
+          <div class="dn-chip-box" id="msize-chip-box" onclick="document.getElementById('msize-input').focus()">
+            <span class="dn-chips" id="msize-chips"></span>
+            <input type="text" id="msize-input" placeholder="예: 100×50×20mm 입력 후 Enter" onkeydown="handleTextChipInputKey(event,'msize')" onblur="addTextChipFromInput('msize')">
+          </div>
+          <input type="hidden" id="msize">
+        </div>
         <div class="f"><label>소재주문개수</label><div style="display:flex;gap:6px;align-items:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum('mcount',-1)">−</button><input type="number" id="mcount" value="0" min="0" style="flex:1;text-align:center"><button type="button" class="btn-sm btn-ghost" onclick="stepNum('mcount',1)">＋</button></div></div>
       </div>
       <div class="fg c4 qty-row" style="margin-bottom:9px">
@@ -395,6 +402,7 @@ hr.dv{border:none;border-top:1.5px solid var(--lt);margin:13px 0}
 <script>
 var drawingChips = [];
 var qtyChips = { deliv_qty: [], stock_qty: [] };
+var textChips = { msize: [] };
 
 // ── 기본정보 저장 (HTML 다운로드) ──
 function saveBasicInfo(){
@@ -791,6 +799,8 @@ function resetForm(){
   qtyChips = { deliv_qty: [], stock_qty: [] };
   renderQtyChipsOnly('deliv_qty');
   renderQtyChipsOnly('stock_qty');
+  textChips = { msize: [] };
+  renderTextChipsOnly('msize');
   calcTotal();document.getElementById('proc-list').innerHTML='';procCount=0;document.getElementById('btn-add').style.display='';
 }
 function g(id){var el=document.getElementById(id);return el?el.value.trim():'';}
@@ -1128,6 +1138,49 @@ function syncQtyChipsFromField(field){
   renderQtyChipsOnly(field);
 }
 
+function renderTextChipsOnly(field){
+  var box = document.getElementById(field+'-chips');
+  if(!box) return;
+  box.innerHTML = textChips[field].map(function(v, idx){
+    return '<span class="dn-chip">'+circledNum(idx)+escHtml(v)+'<button type="button" onclick="removeTextChip(\''+field+'\','+idx+')">×</button></span>';
+  }).join('');
+}
+
+function renderTextChips(field){
+  renderTextChipsOnly(field);
+  document.getElementById(field).value = textChips[field].join(', ');
+  if(field==='msize') calcTotal();
+}
+
+function addTextChipFromInput(field){
+  var inp = document.getElementById(field+'-input');
+  var v = inp.value.trim().replace(/,+$/,'').trim();
+  if(!v) return;
+  textChips[field].push(v);
+  inp.value = '';
+  renderTextChips(field);
+}
+
+function removeTextChip(field, idx){
+  textChips[field].splice(idx,1);
+  renderTextChips(field);
+}
+
+function handleTextChipInputKey(e, field){
+  if(e.key==='Enter' || e.key===','){
+    e.preventDefault();
+    addTextChipFromInput(field);
+  } else if(e.key==='Backspace' && !e.target.value && textChips[field].length){
+    removeTextChip(field, textChips[field].length-1);
+  }
+}
+
+function syncTextChipsFromField(field){
+  var val = document.getElementById(field).value || '';
+  textChips[field] = val.split(',').map(function(s){return s.trim();}).filter(Boolean);
+  renderTextChipsOnly(field);
+}
+
 function onDrawingInput(){
   var dn = document.getElementById('drawing').value.trim();
   var hint = document.getElementById('drawing-hint');
@@ -1391,6 +1444,7 @@ function saveCurrentToolsToDB(){
     syncDrawingChipsFromField();
     syncQtyChipsFromField('deliv_qty');
     syncQtyChipsFromField('stock_qty');
+    syncTextChipsFromField('msize');
     calcTotal();
     if(document.getElementById('drawing').value) onDrawingInput();
 
@@ -1562,6 +1616,7 @@ function generateShareLink(){
     syncDrawingChipsFromField();
     syncQtyChipsFromField('deliv_qty');
     syncQtyChipsFromField('stock_qty');
+    syncTextChipsFromField('msize');
     if (typeof calcTotal === 'function') calcTotal();
   } catch(e){ console.log('공유링크 복원 오류:', e); }
 })();
