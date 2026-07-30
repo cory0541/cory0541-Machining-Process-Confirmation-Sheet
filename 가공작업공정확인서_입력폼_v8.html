@@ -273,7 +273,13 @@ hr.dv{border:none;border-top:1.5px solid var(--lt);margin:13px 0}
           </div>
           <input type="hidden" id="stock_qty" value="">
         </div>
-        <div class="f"><label>총  수  량  (자동)</label><input type="number" id="total_qty" readonly></div>
+        <div class="f">
+          <label>총  수  량  (자동)</label>
+          <div class="dn-chip-box" id="total_qty-box" style="background:var(--pale);cursor:default">
+            <span class="dn-chips" id="total_qty-chips"></span>
+          </div>
+          <input type="hidden" id="total_qty">
+        </div>
       </div>
       <div class="fg c2"><div class="f"><label>납  기  일</label><input type="date" id="due_date"></div>
         <div class="f"><label>작  성  자</label><input type="text" id="writer" placeholder="작성자 입력"></div>
@@ -387,6 +393,8 @@ hr.dv{border:none;border-top:1.5px solid var(--lt);margin:13px 0}
 <div class="toast" id="toast">✓ 다운로드 완료</div>
 <div class="lding" id="lding"><div class="lbox"><div class="spin"></div><p>엑셀 생성 중...</p></div></div>
 <script>
+var drawingChips = [];
+var qtyChips = { deliv_qty: [], stock_qty: [] };
 
 // ── 기본정보 저장 (HTML 다운로드) ──
 function saveBasicInfo(){
@@ -484,9 +492,29 @@ function sumQtyString(s){
   return String(s||'').split(',').map(function(v){ return parseFloat(v.trim())||0; }).reduce(function(a,b){ return a+b; }, 0);
 }
 function calcTotal(){
-  var d=sumQtyString(document.getElementById('deliv_qty').value);
-  var s=sumQtyString(document.getElementById('stock_qty').value);
-  document.getElementById('total_qty').value=d+s;
+  var delivArr = qtyChips.deliv_qty || [];
+  var stockArr = qtyChips.stock_qty || [];
+  var n = Math.max(delivArr.length, stockArr.length, drawingChips.length);
+  var box = document.getElementById('total_qty-chips');
+  if(n === 0){
+    // 태그가 하나도 없으면 기존처럼 단일 합계만 표시
+    var total0 = sumQtyString(document.getElementById('deliv_qty').value) + sumQtyString(document.getElementById('stock_qty').value);
+    document.getElementById('total_qty').value = String(total0);
+    box.innerHTML = '<span class="dn-chip" style="background:#fff">'+total0+'</span>';
+    return;
+  }
+  var totals = [];
+  var chipsHtml = '';
+  for(var i=0;i<n;i++){
+    var d = parseFloat(delivArr[i])||0;
+    var s = parseFloat(stockArr[i])||0;
+    var t = d + s;
+    totals.push(t);
+    var label = circledNum(i);
+    chipsHtml += '<span class="dn-chip" style="background:#fff">'+label+'<b>'+t+'</b></span>';
+  }
+  document.getElementById('total_qty').value = totals.join(', ');
+  box.innerHTML = chipsHtml;
 }
 function mkOrderOpts(def){
   return ORDER.map(function(o){return '<option'+(o===def?' selected':'')+'>'+o+'</option>';}).join('');
@@ -1008,13 +1036,16 @@ function tryAutoFillProcess(pi){
   }
 }
 
-var drawingChips = [];
+var CIRCLED_NUMS = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+function circledNum(idx){
+  return CIRCLED_NUMS[idx] || ('('+(idx+1)+')');
+}
 
 function renderDrawingChipsOnly(){
   var box = document.getElementById('drawing-chips');
   if(!box) return;
   box.innerHTML = drawingChips.map(function(dn, idx){
-    return '<span class="dn-chip">'+escHtml(dn)+'<button type="button" onclick="removeDrawingChip('+idx+')">×</button></span>';
+    return '<span class="dn-chip">'+circledNum(idx)+escHtml(dn)+'<button type="button" onclick="removeDrawingChip('+idx+')">×</button></span>';
   }).join('');
 }
 
@@ -1022,6 +1053,7 @@ function renderDrawingChips(){
   renderDrawingChipsOnly();
   document.getElementById('drawing').value = drawingChips.join(', ');
   onDrawingInput();
+  calcTotal();
 }
 
 function addDrawingChipFromInput(){
@@ -1053,13 +1085,11 @@ function syncDrawingChipsFromField(){
   renderDrawingChipsOnly();
 }
 
-var qtyChips = { deliv_qty: [], stock_qty: [] };
-
 function renderQtyChipsOnly(field){
   var box = document.getElementById(field+'-chips');
   if(!box) return;
   box.innerHTML = qtyChips[field].map(function(v, idx){
-    return '<span class="dn-chip">'+escHtml(v)+'<button type="button" onclick="removeQtyChip(\''+field+'\','+idx+')">×</button></span>';
+    return '<span class="dn-chip">'+circledNum(idx)+escHtml(v)+'<button type="button" onclick="removeQtyChip(\''+field+'\','+idx+')">×</button></span>';
   }).join('');
 }
 
@@ -1361,6 +1391,7 @@ function saveCurrentToolsToDB(){
     syncDrawingChipsFromField();
     syncQtyChipsFromField('deliv_qty');
     syncQtyChipsFromField('stock_qty');
+    calcTotal();
     if(document.getElementById('drawing').value) onDrawingInput();
 
     // 공구 DB 복원
